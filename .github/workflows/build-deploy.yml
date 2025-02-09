@@ -1,108 +1,51 @@
-name: Django CI
+
+
+name: CI Pipeline
 
 on:
   push:
     branches:
       - main
-      - dev
+      - '**' 
   pull_request:
-
+    branches:
+      - main
+      - '**' 
 jobs:
   test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: saad
-          POSTGRES_DB: social-app-dj
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: saad
+      DB_NAME: social-app
+      SECRET_KEY: 09d25e094faa2556c818166b7a99f6f0f4c3b88e8d3e7
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
 
-      - name: Install dependencies
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          echo "✅ Dependencies installed successfully"
+    - name: Start PostgreSQL
+      run: |
+        docker run --name postgres -e POSTGRES_USER=${{ env.DB_USER }} \
+          -e POSTGRES_PASSWORD=${{ env.DB_PASSWORD }} \
+          -e POSTGRES_DB=${{ env.DB_NAME }} \
+          -p 5432:5432 -d postgres:13
+        sleep 10
 
-      - name: Run migrations
-        env:
-          DATABASE_URL: postgres://postgres:saad@localhost:5432/social-app-dj
-        run: |
-          source venv/bin/activate
-          python manage.py migrate
-          echo "✅ Migrations applied successfully"
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
 
-      - name: Run tests
-        run: |
-          source venv/bin/activate
-          python manage.py test
-          echo "✅ Tests executed successfully"
-
-
-# name: CI Pipeline
-
-# on:
-#   push:
-#     branches:
-#       - main
-#       - '**' 
-#   pull_request:
-#     branches:
-#       - main
-#       - '**' 
-# jobs:
-#   test:
-#     runs-on: ubuntu-latest
-
-#     env:
-#       DB_HOST: localhost
-#       DB_PORT: 5432
-#       DB_USER: postgres
-#       DB_PASSWORD: saad
-#       DB_NAME: social-app
-#       SECRET_KEY: 09d25e094faa2556c818166b7a99f6f0f4c3b88e8d3e7
-#       ALGORITHM: HS256
-#       ACCESS_TOKEN_EXPIRE_MINUTES: 30
-
-
-#     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v3
-
-#     - name: Set up Python
-#       uses: actions/setup-python@v4
-#       with:
-#         python-version: "3.10"
-
-#     - name: Start PostgreSQL
-#       run: |
-#         docker run --name postgres -e POSTGRES_USER=${{ env.DB_USER }} \
-#           -e POSTGRES_PASSWORD=${{ env.DB_PASSWORD }} \
-#           -e POSTGRES_DB=${{ env.DB_NAME }} \
-#           -p 5432:5432 -d postgres:13
-#         sleep 10
-
-#     - name: Install dependencies
-#       run: |
-#         pip install -r requirements.txt
-
-#     - name: Run tests
-#       run: pytest --disable-warnings
+    - name: Run tests
+      run: pytest --disable-warnings
