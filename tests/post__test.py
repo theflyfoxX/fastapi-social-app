@@ -25,7 +25,7 @@ def test_create_post(mock_db):
     mock_db.refresh.return_value = post_mock
 
     new_post = PostService.create_post(post_data, mock_db, current_user_id)
-    assert new_post is not None
+    assert new_post is not None # assert actual value of the post as id or title...
 
 def test_update_post_not_found(mock_db):
     post_id = uuid4()
@@ -37,3 +37,5 @@ def test_update_post_not_found(mock_db):
         PostService.update_post(post_id, post_data, mock_db, uuid4())
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+# create all tests for the rest of the functions in services/post_service.py

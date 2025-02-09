@@ -34,3 +34,5 @@ def test_vote_already_voted(mock_db):
         VoteService.vote(vote_data, mock_db, user_id)
 
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    
+# add tests for all cases

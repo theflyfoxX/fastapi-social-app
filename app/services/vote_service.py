@@ -22,7 +22,7 @@ class VoteService:
         vote_query = db.query(Vote).filter(
             Vote.post_id == vote_data.post_id, Vote.user_id == str(user_id)  # ✅ Convert user_id to string if needed
         )
-
+        sample_query = vote_query.all()
         found_vote = vote_query.first()
         if vote_data.dir == 1:
             if found_vote:

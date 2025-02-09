@@ -16,7 +16,7 @@ def mock_db():
     return MagicMock()
 
 def test_create_user(mock_db):
-    user_data = UserCreate(email="elonmusk@gmail.com", password="tesla123")
+    user_data = UserCreate(email="john@gmail.com", password="example123")
     user_mock = MagicMock()
     user_mock.id = uuid4()
     mock_db.add.return_value = None
