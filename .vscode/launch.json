@@ -1,21 +1,31 @@
 {
     "version": "0.2.0",
     "configurations": [
-    {
-    "name": "FastAPI Debugger",
-    "type": "debugpy",
-    "request": "attach",
-    "connect": {
-        "host": "localhost",
-        "port": 5680
-    },
-    "pathMappings": [
         {
-        "localRoot": "${workspaceFolder}",
-        "remoteRoot": "/app"
+            "name": "Run FastAPI App",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",  // Change if your main file has a different path
+                "--host", "0.0.0.0",
+                "--port", "8000",
+                "--reload"
+            ],
+            "env": {
+                "ENVIRONMENT": "development"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Run Pytest Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests"
+            ],
+            "console": "integratedTerminal"
         }
-    ],
-    "justMyCode": true
-    }
-]
+    ]
 }
