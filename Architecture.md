@@ -1,26 +1,30 @@
 # **Graph Alert Simulator Backend Architecture**
 
-**Date:** March 1, 2025
+**Date:** March 1, 2025  
 
 ## **Table of Contents**
 1. Introduction  
 2. System Architecture Overview  
-3. API Endpoints & Functionalities  
-4. Database Schema & Models  
-5. Code Snippets  
-6. Testing & Optimization Strategies  
-7. Connecting Backend with Frontend  
-8. Caching and Notification Handling  
-9. Conclusion  
+3. Notification System  
+4. Filtering Mechanism  
+5. Applying Changes  
+6. Graph Exporting as JPG  
+7. API Endpoints & Functionalities  
+8. Database Schema & Models  
+9. Code Snippets  
+10. Testing & Optimization Strategies  
+11. Connecting Backend with Frontend  
+12. Caching and Notification Handling  
+13. Conclusion  
 
 ---
 
 ## **1. Introduction**
-This document outlines the architecture, API design, and implementation details of the **Graph Alert Simulator Backend**.  
-The system:
-- Fetches **alert history data** from a database.
-- **Processes and filters** data for visualization.
-- **Notifies users** via email/SMS if conditions are met.
+This document outlines the **Graph Alert Simulator Backend**, focusing on:
+- Fetching **historical alert data** from a database.
+- Allowing users to **filter and visualize** data in a graph.
+- **Notifying users** via Email/SMS when machine conditions reach a threshold.
+- **Downloading graphs** as JPG for reports or analysis.
 
 ---
 
@@ -40,7 +44,56 @@ The **backend** is built using:
 
 ---
 
-## **3. API Endpoints & Functionalities**
+## **3. Notification System (Parag. 1 - Notify User)**
+Users receive notifications via **Email or SMS** based on the settings assigned by an **admin**.  
+- The **admin** determines which users are eligible for notifications.  
+- Users will be **notified when a machine with a specific UUID reaches a certain threshold** for a selected `tag_code` (either **Temperature (°C)** or **Pressure (P)**).  
+- The notification system ensures that only **authorized users** receive alerts when a predefined condition is met.  
+
+---
+
+## **4. Filtering Mechanism (Parag. 2 - Filtering)**  
+
+### **Frontend & Backend Logic**  
+
+1. **Retrieve and map inputs for dropdowns:**  
+   - Fetch available options dynamically for each input field (`machine-uuid`, `tag_codes`, etc.).
+   - Populate dropdowns based on **valid machine-tag associations**.
+
+2. **Conditions for Inputs:**  
+
+   - **Tag Codes Validation:**  
+     - Machines may only have **one valid tag_code** (either `TEMP` or `PRESSURE`).
+     - If a user selects an **invalid tag_code** (one that does not exist for the selected machine), an **error alert** should be displayed.
+
+   - **Date Inputs Validation:**  
+     - Users can select a **start date** and an **end date** freely.  
+     - The **start date must always be earlier than the end date** (`start_date < end_date`).  
+     - If this condition is violated, an **error alert** should appear.
+
+   - **Apply Button Logic:**  
+     - The **"Apply Changes"** button should remain **disabled** until **all conditions** are satisfied (valid machine UUID, tag_code, and date range).
+
+---
+
+## **5. Applying Changes (Parag. 3 - Apply Changes)**
+Once all conditions are met and the user clicks **"Apply Changes"**:  
+1. The frontend triggers an **API request** to fetch **filtered data** from **PostgreSQL**.  
+2. The retrieved data is then **displayed on a graph** where:  
+   - The **X-axis** represents the **time interval** between `start_datetime` and `end_datetime`.  
+   - The **Y-axis** represents the selected **tag_code** value (`TEMP °C` or `Pressure P`).  
+
+---
+
+## **6. Graph Exporting as JPG (Parag. 4 - Download Graph)**
+- Users should have the ability to **download the generated graph** as a **JPG file**.  
+- When clicking the **"Download Graph"** button:  
+  1. The system should **convert the current graph into a JPG image**.  
+  2. The file should be **automatically downloaded** to the user's device.  
+
+---
+
+## **7. API Endpoints & Functionalities**
 
 ### **Fetching Historical Alert Data**
 - **Endpoint:** `GET /api/alert-simulator/data`
@@ -75,7 +128,7 @@ The **backend** is built using:
 
 ---
 
-## **4. Database Schema & Models**
+## **8. Database Schema & Models**
 The system stores alert history in **PostgreSQL** with the following schema:
 
 ### **Table: alerts**
@@ -91,63 +144,7 @@ The system stores alert history in **PostgreSQL** with the following schema:
 
 ---
 
-## **5. Code Snippets**
-
-### **Fetching Alert Data**
-```python
-from fastapi import FastAPI, Query
-from datetime import datetime
-
-app = FastAPI()
-
-@app.get("/api/alert-simulator/data")
-async def get_alert_data(
-    machine_id: str,
-    start_datetime: datetime,
-    end_datetime: datetime,
-    tag_codes: list[str] = Query([]),
-):
-    data = fetch_data_from_db(machine_id, start_datetime, end_datetime, tag_codes)
-    return {"data": data}
-```
-
----
-
-### **Exporting Graph as JPG**
-```python
-import matplotlib.pyplot as plt
-from fastapi.responses import FileResponse
-
-@app.get("/api/alert-simulator/export-jpg")
-async def export_graph():
-    plt.figure(figsize=(6,4))
-    plt.plot([1,2,3], [90, 100, 80], label="Temp °C")
-    plt.xlabel("Time")
-    plt.ylabel("Value")
-    plt.legend()
-    plt.savefig("graph.jpg")
-    return FileResponse("graph.jpg")
-```
-
----
-
-### **Sending Notifications**
-```python
-from azure.communication.email import EmailClient
-
-def send_notification(user_email, message):
-    email_client = EmailClient("your-azure-connection-string")
-    email_client.send(
-        from_email="alerts@yourdomain.com",
-        to_email=user_email,
-        subject="Alert Notification",
-        body=message
-    )
-```
-
----
-
-## **6. Testing & Optimization Strategies**
+## **9. Testing & Optimization Strategies**
 
 ### **Unit Tests**
 - Validate API responses for:
@@ -166,7 +163,7 @@ def send_notification(user_email, message):
 
 ---
 
-## **7. Connecting Backend with Frontend**
+## **10. Connecting Backend with Frontend**
 The **React frontend** interacts with FastAPI using `axios` for API calls.  
 
 Example **fetch request** in React:
@@ -187,7 +184,7 @@ const fetchData = async () => {
 
 ---
 
-## **8. Caching and Notification Handling**
+## **11. Caching and Notification Handling**
 ### **Redis for Caching**
 ```python
 import redis
@@ -205,7 +202,7 @@ def get_cached_data(key):
 
 ---
 
-## **9. Conclusion**
+## **12. Conclusion**
 This document presents a **structured backend architecture** for a **Graph Alert Simulator**, ensuring:
 - **Efficient data retrieval** from PostgreSQL.
 - **Real-time notifications** for alerts.
