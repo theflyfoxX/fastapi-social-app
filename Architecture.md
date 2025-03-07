@@ -1,90 +1,195 @@
-# Alert Simulation System Backend Architecture
+# Deep Dive into Alert Simulation System Backend Architecture
 
-## 1. Introduction
-This document outlines the architecture of the **Alert Simulation System**, a backend service that processes historical machine tag data to identify when a defined alert condition was met. The system does not trigger real alerts but allows users to visualize past alert conditions based on stored data.
+## 1. Understanding the Problem
 
-## 2. System Overview
-The backend is responsible for:
-- Retrieving **historical machine tag data** within a defined timeframe.
-- **Evaluating conditions** to determine when an alert threshold was crossed.
-- Formatting **response data as JSON** for frontend visualization.
-- **Ensuring performance** by handling up to **2000 data points per request**.
+The **Alert Simulation System** is a backend service that allows users to analyze **historical machine tag data** and detect when certain conditions were met. Unlike a real-time alert system, this simulation does not trigger live notifications but instead provides **a retrospective view of machine events** for better analysis and decision-making.
 
-## 3. Input Data & User-Defined Conditions
-Users can specify:
-- **Start & End Time:** Data range (maximum **one week**).
-- **Tags:** Parameters like `temperature`, `pressure`.
-- **Logic Statement:** Condition (e.g., `Tag1 > 10 AND Tag2 < 50`).
-- **Max Data Points:** Limit of **2000** matches per graph.
+### **Key Concept: When Should an Alert be Logged?**
 
-## 4. Historical Data Retrieval
-### Data Source
-Uses **CosmosDB** to store and fetch machine tag history.
+- Consider a machine that must maintain **a temperature above 0°C**.
+- On **March 1, 2025, at 6:00 PM**, the temperature dropped **below 0°C**.
+- At **6:01 PM**, the temperature returned to normal.
+- The system should only log **this exact moment when the condition was met** and display it visually.
 
-### API to Fetch Data
+This ensures that unnecessary data points are not included, making the visualization **clear, precise, and efficient**.
+
+---
+
+## 2. Enhancing the System with Additional Features
+
+### **What Was Missing?**
+
+- The **original design focused** only on fetching historical data.
+- It lacked **multiple alert conditions per tag**.
+- No implementation for **storing and retrieving past simulations**.
+- Missing **metadata for alerts** (severity, frequency, resolution time, etc.).
+- No **custom visualization filters** for better graph representation.
+
+### **What We Will Improve?**
+
+- **Allow multiple threshold conditions per tag** (e.g., both upper and lower bounds).
+- **Introduce metadata** for alerts (e.g., machine health status, frequency of violations).
+- **Allow real-time tagging of anomalies** and let users annotate findings.
+
+---
+
+## 3. Improved Data Model
+
+### **Database Schema (PostgreSQL)**
+
+```sql
+CREATE TABLE machine_alerts (
+    id UUID PRIMARY KEY,
+    machine_id UUID NOT NULL,
+    tag_code TEXT NOT NULL,
+    value FLOAT NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    condition_met BOOLEAN DEFAULT FALSE,
+    severity TEXT CHECK (severity IN ('low', 'medium', 'high')),
+    notes TEXT
+);
+```
+
+### **Improvements Over the Old Design**
+
+- **Condition\_met column** ensures we only log violations.
+- **Severity column** helps users prioritize issues.
+- **Notes column** allows users to annotate events.
+
+---
+
+## 4. Advanced Data Retrieval and Filtering
+
+### **Improved API Endpoint**
+
 ```python
-async def get_machine_tags_history(
-    db, 
-    machine, 
-    start_datetime, 
-    end_datetime, 
-    tag_ids, 
-    limit=10000
+from fastapi import FastAPI, Query
+from typing import List
+from datetime import datetime
+
+app = FastAPI()
+
+@app.get("/api/alert-simulator/data")
+async def get_alert_data(
+    machine_id: str,
+    start_datetime: datetime,
+    end_datetime: datetime,
+    tag_codes: List[str] = Query([]),
+    min_value: float = None,
+    max_value: float = None
 ):
-    historical_data = await db.fetch(
-        machine_id=machine,
-        start_time=start_datetime,
-        end_time=end_datetime,
-        tags=tag_ids,
-        max_records=limit
-    )
-    return historical_data
-```
-
-## 5. Evaluating Alert Conditions
-The function `evaluate_alert_condition()` checks if a tag value violates a given condition.
-
-### Processing Historical Data
-```python
-matches = []
-last_known_values = {}
-
-for data_point in historical_data:
-    timestamp = data_point.timestamp
-    tag_name = data_point.tag
-    tag_value = data_point.value
-
-    last_known_values[tag_name] = tag_value
-
-    condition_met = evaluate_alert_condition(tag_name, tag_value, user_defined_conditions)
+    query = "SELECT * FROM machine_alerts WHERE machine_id = :machine_id AND timestamp BETWEEN :start AND :end"
     
-    if condition_met:
-        matches.append({
-            "timestamp": timestamp,
-            "tag_name": tag_name,
-            "value": tag_value
-        })
+    if tag_codes:
+        query += " AND tag_code IN (:tag_codes)"
+    if min_value:
+        query += " AND value >= :min_value"
+    if max_value:
+        query += " AND value <= :max_value"
+
+    data = await fetch_from_db(query, machine_id, start_datetime, end_datetime, tag_codes, min_value, max_value)
+    return {"data": data}
 ```
 
-## 6. Formatting Data for Frontend
-Once processed, the backend formats data as JSON for the frontend to visualize.
+### **Enhancements**
 
-### Example JSON Response
+- **Min and max values filtering** allows flexible querying.
+- **Dynamic query construction** improves efficiency.
+
+---
+
+## 5. Enhanced Condition Evaluation
+
+### **Old vs New Approach**
+
+- Previously, we only checked for **one threshold condition per tag**.
+- Now, we allow **multiple conditions per tag**.
+
+### **New Evaluation Logic**
+
+```python
+def evaluate_conditions(tag_name, tag_value, conditions):
+    for condition in conditions:
+        operator, threshold = condition["operator"], condition["value"]
+        
+        if operator == ">" and tag_value > threshold:
+            return True
+        elif operator == "<" and tag_value < threshold:
+            return True
+        elif operator == "==" and tag_value == threshold:
+            return True
+        elif operator == "!=" and tag_value != threshold:
+            return True
+    return False
+```
+
+### **Why This is Better?**
+
+- Allows **custom conditions per tag**.
+- Supports **multiple logical operators**.
+- More flexible and scalable.
+
+---
+
+## 6. Optimized JSON Response for Frontend
+
+### **New JSON Format**
+
 ```json
 {
-  "alert_id": "2d537e04-0139-4740-9a69-dadbd95d5984",
-  "matches": [
-    { "timestamp": "2025-02-25T14:00:00Z", "tag_name": "TEMP", "value": -1 },
-    { "timestamp": "2025-02-25T14:05:00Z", "tag_name": "TEMP", "value": 3 }
+  "machine_id": "123e4567-e89b-12d3-a456-426614174000",
+  "alerts": [
+    {
+      "timestamp": "2025-03-01T18:00:00Z",
+      "tag_code": "TEMP",
+      "value": -1,
+      "severity": "high",
+      "condition": "value < 0",
+      "notes": "Temperature dropped below safe limit."
+    }
   ]
 }
 ```
 
-## 7. Testing and Validation
-To ensure system reliability, the backend undergoes rigorous testing:
-- **Accuracy Testing:** Validate detection logic against expected results.
-- **Performance Testing:** Ensure smooth processing for large data sets.
-- **Edge Case Handling:** Test missing values, extreme inputs, and invalid data.
+### **New Features**
+
+- **Severity field** helps prioritize alerts.
+- **Notes field** allows user annotations.
+- **Machine ID included** for better tracking.
+
+## 7. Testing & Validation Strategies
+
+### **New Test Cases to Cover**
+
+- **Multiple conditions per tag**.
+- **Handling missing data points**.
+- **Testing with large datasets (> 2000 records).**
+- **Edge cases like invalid timestamps, out-of-range values.**
+
+### **Automated API Test Example**
+
+```python
+from fastapi.testclient import TestClient
+from main import app
+
+client = TestClient(app)
+
+def test_alert_fetch():
+    response = client.get("/api/alert-simulator/data", params={
+        "machine_id": "123e4567-e89b-12d3-a456-426614174000",
+        "start_datetime": "2025-03-01T00:00:00",
+        "end_datetime": "2025-03-02T00:00:00"
+    })
+    assert response.status_code == 200
+```
+
+---
 
 ## 8. Conclusion
-This architecture provides a scalable backend for **alert simulation**, enabling users to visualize alert conditions efficiently. It ensures fast processing, structured data output, and optimized performance.
+
+This **new and improved architecture** introduces:
+
+- **More powerful filtering options**.
+- **Custom alert conditions per tag**.
+- **More insightful JSON responses for better frontend visualization**.
+
