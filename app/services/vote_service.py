@@ -20,7 +20,7 @@ class VoteService:
             )
 
         vote_query = db.query(Vote).filter(
-            Vote.post_id == vote_data.post_id, Vote.user_id == str(user_id)  # ✅ Convert user_id to string if needed
+            Vote.post_id == vote_data.post_id, Vote.user_id == str(user_id)  
         )
         sample_query = vote_query.all()
         found_vote = vote_query.first()
@@ -30,7 +30,7 @@ class VoteService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"User {user_id} has already voted on post {vote_data.post_id}"
                 )
-            new_vote = Vote(post_id=vote_data.post_id, user_id=str(user_id))  # ✅ Ensure it's a string
+            new_vote = Vote(post_id=vote_data.post_id, user_id=str(user_id)) 
             db.add(new_vote)
             db.commit()
             return {"message": "Successfully added vote"}
